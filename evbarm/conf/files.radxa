@@ -1,0 +1,10 @@
+#	$NetBSD$
+#
+# RADXA ROCK configuration info
+#
+
+file	arch/evbarm/radxa/radxa_machdep.c
+
+defparam opt_machdep.h				BOOT_ARGS
+
+include "arch/arm/rockchip/files.rockchip"
