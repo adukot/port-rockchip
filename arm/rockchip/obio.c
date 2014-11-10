@@ -61,6 +61,11 @@ CFATTACH_DECL_NEW(obio, 0,
 int	obio_print(void *, const char *);
 int	obio_search(device_t, cfdata_t, const int *, void *);
 
+void	obio_init_grf(void);
+void	obio_iomux(int, int);
+void	obio_init_gpio(void);
+void	obio_swporta(int, int, int);
+
 /* there can be only one */
 bool	obio_found;
 
@@ -81,6 +86,9 @@ obio_attach(device_t parent, device_t self, void *aux)
 	aprint_naive("\n");
 	aprint_normal(": On-board I/O\n");
 
+	obio_init_grf();
+	obio_init_gpio();
+
 	/*
 	 * Attach all on-board devices as described in the kernel
 	 * configuration file.
@@ -93,14 +101,14 @@ obio_print(void *aux, const char *pnp)
 {
 	struct obio_attach_args *obio = aux;
 
-	aprint_normal(" addr 0x%08lx", obio->obio_addr);
+	aprint_normal(": addr 0x%08lx", obio->obio_addr);
 	aprint_normal("-0x%08lx", obio->obio_addr + (obio->obio_size - 1));
 	if (obio->obio_width != OBIOCF_WIDTH_DEFAULT)
 		aprint_normal(" width %d", obio->obio_width);
 	if (obio->obio_intr != OBIOCF_INTR_DEFAULT)
 		aprint_normal(" intr %d ", obio->obio_intr);
-	aprint_normal(" mult %d ", obio->obio_mult);
-	aprint_normal("\n");
+	aprint_normal(" mult %d \n", obio->obio_mult);
+
 	return UNCONF;
 }
 
@@ -114,6 +122,9 @@ obio_search(device_t parent, cfdata_t cf, const int *ldesc, void *aux)
 	obio.obio_width = cf->cf_loc[OBIOCF_WIDTH];
 	obio.obio_intr = cf->cf_loc[OBIOCF_INTR];
 	obio.obio_mult = cf->cf_loc[OBIOCF_MULT];
+	obio.obio_dmat = &rockchip_bus_dma_tag;
+
+
 	switch (cf->cf_loc[OBIOCF_MULT]) {
 	case 1:
 		obio.obio_iot = &rockchip_bs_tag;
@@ -129,4 +140,62 @@ obio_search(device_t parent, cfdata_t cf, const int *ldesc, void *aux)
 		config_attach(parent, cf, &obio, obio_print);
 	}
 	return 0;
+}
+
+#define GRF_GPIO3A_IOMUX_OFFSET	0x0090
+#define GRF_GPIO3B_IOMUX_OFFSET	0x0094
+#define GRF_GPIO3C_IOMUX_OFFSET	0x0098
+#define GRF_GPIO3D_IOMUX_OFFSET	0x009C
+
+void obio_init_grf(void)
+{
+	obio_iomux(GRF_GPIO3A_IOMUX_OFFSET, 0xffff5555);
+	obio_iomux(GRF_GPIO3B_IOMUX_OFFSET, 0xffff0004);
+	obio_iomux(GRF_GPIO3D_IOMUX_OFFSET, 0xffff1400);
+}
+
+void obio_iomux(int offset, int new)
+{
+	bus_space_handle_t bh;
+	bus_space_tag_t bt = &rockchip_bs_tag;
+	int old, renew;
+
+	if (bus_space_map(bt, ROCKCHIP_GRF_BASE, ROCKCHIP_GRF_SIZE, 0, &bh))
+		panic("GRF can not be mapped.");
+
+	old = bus_space_read_4(bt, bh, offset);
+	bus_space_write_4(bt, bh, offset, (old | new | 0xffff0000));
+	renew = bus_space_read_4(bt, bh, offset);
+
+	printf("grf iomux: old %08x, new %08x, renew %08x\n", old, new, renew);
+
+	bus_space_unmap(bt, bh, ROCKCHIP_GRF_SIZE);
+}
+
+#define GPIO_SWPORTA_DR_OFFSET	0x00
+#define GPIO_SWPORTA_DD_OFFSET	0x04
+
+void obio_init_gpio(void)
+{
+	obio_swporta(ROCKCHIP_GPIO0_BASE, GPIO_SWPORTA_DR_OFFSET, __BIT(3));
+	obio_swporta(ROCKCHIP_GPIO0_BASE, GPIO_SWPORTA_DD_OFFSET, __BIT(3));
+}
+
+void obio_swporta(int gpio_base, int offset, int new)
+{
+	bus_space_handle_t bh;
+	bus_space_tag_t bt = &rockchip_bs_tag;
+	int old, renew;
+	int gpio_size = 0x100; /* XXX */
+
+	if (bus_space_map(bt, gpio_base, gpio_size, 0, &bh))
+		panic("gpio can not be mapped.");
+
+	old = bus_space_read_4(bt, bh, offset);
+	bus_space_write_4(bt, bh, offset, old | new);
+	renew = bus_space_read_4(bt, bh, offset);
+
+	printf("gpio: 0x%08x 0x%08x -> 0x%08x\n", gpio_base + offset, old, renew);
+
+	bus_space_unmap(bt, bh, gpio_size);
 }
