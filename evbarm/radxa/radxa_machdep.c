@@ -594,7 +594,7 @@ radxa_device_register(device_t self, void *aux)
 	}
 
 	if (device_is_a(self, "arml2cc")) {
-                prop_dictionary_set_int32(dict, "offset", -0x4000);
+                prop_dictionary_set_uint32(dict, "offset", 0xffffc000); /* -0x4000 */
 		return;
 	}
 #endif
