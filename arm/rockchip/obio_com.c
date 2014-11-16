@@ -101,7 +101,6 @@ obiouart_match(device_t parent, cfdata_t cf, void *aux)
 		return 1;
 
 	rv = comprobe1(obio->obio_iot, bh);
-	printf("comprobe1 ret=%d\n", rv);
 
 	bus_space_unmap(obio->obio_iot, bh, obio->obio_size);
 
