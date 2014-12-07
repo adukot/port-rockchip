@@ -588,8 +588,7 @@ radxa_device_register(device_t self, void *aux)
 		 * This clock always runs at (arm_clk div 2) and only goes
 		 * to timers that are part of the A9 MP core subsystem.
 		 */
-                prop_dictionary_set_uint32(dict, "frequency",
-		    curcpu()->ci_data.cpu_cc_freq / 2);
+                prop_dictionary_set_uint32(dict, "frequency", 148500000); /* 148.5MHz */
 		return;
 	}
 
